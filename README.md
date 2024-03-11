@@ -12,11 +12,11 @@ We presented WayFASTER, a novel method for self-supervised traversability estima
 ## Citation
 If you find the code useful, please consider citing our paper using the following BibTeX entry.
 ```
-@InProceedings{,
-author = {Mateus V. Gasparino, Arun N. Sivakumar, and Girish Chowdhary},
-title = {WayFASTER: a Self-Supervised Traversability Prediction for Increased},
-booktitle = {},
-year = {2024}
+@article{gasparino2024wayfaster,
+  title={WayFASTER: a Self-Supervised Traversability Prediction for Increased Navigation Awareness},
+  author={Gasparino, Mateus Valverde and Sivakumar, Arun Narenthiran and Chowdhary, Girish},
+  journal={arXiv preprint arXiv:2402.00683},
+  year={2024}
 }
 ```
 
