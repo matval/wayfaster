@@ -1,0 +1,23 @@
+name: wayfaster
+channels:
+  - conda-forge
+  - pytorch
+  - https://ftp.osuosl.org/pub/open-ce/1.5.1
+dependencies:
+- pytorch=1.10.1=cuda11.2_py39_1
+- numpy
+- scikit-learn
+- scipy
+- pillow
+- tqdm
+- absl-py
+- kornia
+- pandas
+- pytorch-lightning
+- pip
+- pip:
+    - torchvision
+    - opencv-python
+    - torchtext==0.6.0
+    - aitextgen==0.6.0
+    - easydict
