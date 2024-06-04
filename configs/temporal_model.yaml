@@ -1,35 +1,25 @@
 TAG: 'temporal'
 
 DATASET:
-    TRAIN_DATA: ['../dataset/zed2/data_train', '../dataset/realsense/data_train']
-    VALID_DATA: ['../dataset/zed2/data_valid', '../dataset/realsense/data_valid']
+    TRAIN_DATA: ['dataset/zed2/data_train', 'dataset/realsense/data_train']
+    VALID_DATA: ['dataset/zed2/data_valid', 'dataset/realsense/data_valid']
+
+TRAINING:
+    BATCHSIZE: 8
+    WORKERS: 4
+    EPOCHS: 50
+    VERBOSE: False
 
 MODEL:
-    ENCODER: 'resnet34'
-    TIME_LENGTH: 8
+    TIME_LENGTH: 6
     DOWNSAMPLE: 4
     LATENT_DIM: 64
     INPUT_SIZE: [160, 90]
     PREDICT_DEPTH: True
     TRAIN_DEPTH: True
     FUSE_PCLOUD: True
-    ENC_3_LAYERS: True
     GRID_BOUNDS: {
         'xbound': [-2.0, 8.0, 0.1],
         'ybound': [-5.0, 5.0, 0.1],
-        'zbound': [-1.0, 2.0, 0.2],
-        'dbound': [ 0.3, 8.0, 0.2]}
-
-CONTROL:
-    dt: 0.5
-    real_dt: 0.05
-    samples: 4096   # N_SAMPLES
-    horizon: 28     # TIMESTEPS
-    u_min: [-0.2, -3.0]
-    u_max: [0.8, 3.0]
-    noise_sigma: [0.2, 1.0]
-    gamma: 0.4
-    Q: [1.0, 1.0, 0.5]
-    Qf:  [5.0, 5.0, 2.0]
-    R: [20.0, 0.1]
-    W: [1.0, 1.0]
+        'zbound': [-1.0, 2.0, 1.0],
+        'dbound': [ 0.3, 8.0, 0.3]}

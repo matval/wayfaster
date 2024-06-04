@@ -1,0 +1,17 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+numpy>=1.19.1
+matplotlib>=3.3.1
+pillow
+tqdm>=4.48.2
+absl-py
+pandas
+torch==2.2.2
+torchvision==0.17.2
+pytorch-lightning
+opencv-python
+easydict
+contourpy
+rospkg
+pycryptodomex
+gnupg

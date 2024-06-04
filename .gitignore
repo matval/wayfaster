@@ -161,3 +161,7 @@ cython_debug/
 
 # VS Code
 .vscode
+
+# Other custom files
+runs/*
+dataset/*

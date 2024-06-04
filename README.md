@@ -25,39 +25,37 @@ If you find the code useful, please consider citing our paper using the followin
 ## System requirements
 - Linux (Tested on Ubuntu 20.04)
 - Python3 (Tested using Python 3.8) 
-- PyTorch (Tested using Pytorch 1.13.1) 
-- CUDA (Tested using CUDA 11.7)
+- PyTorch (Tested using Pytorch 2.2.2) 
+- CUDA (Tested using CUDA 12.2)
 
 ## Installation
 a. Create a python virtual environment and activate it.
 ```shell
-python3 -m venv wayfaster
-source wayfaster/bin/activate
+python3 -m virtualenv env
+source env/bin/activate
 ```
-c. Install PyTorch 1.13.1 for CUDA 11.7.
-```shell
-pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
-```
-d. Install the other python dependencies using the provided `requirements.txt` file.
+b. Install the dependencies using the provided `requirements.txt` file.
 ```shell
 pip3 install -r requirements.txt
 ```
 
 ## WayFASTER dataset
-- Download the WayFASTER dataset from [here](https://uofi.app.box.com/s/orehra8yt1xlh9mvv3yx9xe2776phtvx).
-- In `configs/{you_config}.yaml` file, update the `DATASET / TRAIN_DATA` and the `DATASET / VALID_DATA` parameter to the path of the dataset folder.
+- Download the WayFASTER dataset by running the script inside this package:
+```shell
+./download_data.sh
+```
 
 ## Code execution
 ### Configuration parameters and training
-The configuration parameters of the model such as the learning rate, batch size, and dataloader options are stored in the `src/utils` folder.
+The configuration parameters of the model such as the learning rate, batch size, and dataloader options are stored in the `configs` folder.
 If you intend to modify the model parameters, please do so here. Also, the training and evaluation scripts are stored in the same folder.
 
 ### Model and data handling
-The network model is stored in the `src/models` folder. The dataset analisys and handling are stored in the `scripts` folder.
+The network model is stored in the `wayfaster/models` folder.
 
 To train the model, execute the following command. 
 ```shell
-bash train_wayfaster.sh 
+python3 wayfaster/train.py --cfg_file configs/temporal_model.yaml
 ```
 
 ## Experimental results

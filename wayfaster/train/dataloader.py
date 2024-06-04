@@ -14,9 +14,10 @@ from itertools import compress
 from scipy.spatial.transform import Rotation as R
 
 class Dataset(DataLoader.Dataset):
-    def __init__(self, configs, data_path, transform, weights=None):
+    def __init__(self, configs, data_path, transform=None, weights=None, train=False):
         print("Initializing dataset")
         self.transform      = transform
+        self.train          = train
         self.dt             = configs.TRAINING.DT
         self.horizon        = configs.TRAINING.HORIZON
         self.image_size     = configs.MODEL.INPUT_SIZE
@@ -99,7 +100,10 @@ class Dataset(DataLoader.Dataset):
         data_idx = idx - self.bag_sizes[bag_idx]
 
         # Augment with horizontal flip
-        horizontal_flip = random.random() < self.horiz_flip
+        if self.train:
+            horizontal_flip = random.random() < self.horiz_flip
+        else:
+            horizontal_flip = False
 
         # Get the label
         label_fname = rosbag_dict['label_image'][data_idx]
@@ -153,7 +157,7 @@ class Dataset(DataLoader.Dataset):
         pcloud_data = self.read_pcloud(depth_img_list, intrinsics_list, extrinsics_list)
 
         # Augment with pointcloud droput
-        if random.random() < self.pcloud_droput:
+        if self.train and random.random() < self.pcloud_droput:
             pcloud_data = np.zeros_like(pcloud_data)
 
         depth_target_list = []
@@ -167,7 +171,11 @@ class Dataset(DataLoader.Dataset):
                 intrinsics_list[t][1:2] *= (self.image_size[1]/color_img.shape[0])
                 color_img = cv2.resize(color_img, self.image_size, interpolation=cv2.INTER_AREA)
                 depth_img = cv2.resize(depth_img, self.image_size, interpolation=cv2.INTER_NEAREST)
-            color_img_list[t] = self.transform(color_img)
+
+            if self.transform is not None:
+                color_img_list[t] = self.transform(color_img)
+            else:
+                color_img_list[t] = torch.from_numpy(color_img).permute(2,0,1).type(self.dtype) / 255.0
             '''
              Here, if the network is predicting the depth, then the target_depth is the training label
              Otherwise, the target_depth is the voxel representation of the deterministic depth
@@ -216,13 +224,6 @@ class Dataset(DataLoader.Dataset):
             depth_target_list.append(depth_target)
             depth_mask_list.append(depth_mask)
 
-        # if (self.map_size[0] != lidar_img.shape[0]) and (self.map_size[1] != lidar_img.shape[1]):
-        #     lidar_img = cv2.resize(lidar_img, (self.map_size[1], self.map_size[0]), interpolation=cv2.INTER_NEAREST)
-        # # Normalize LiDAR data
-        # lidar_img = lidar_img/255.0
-        # # Add one dim as channel for the lidar image
-        # lidar_img = np.expand_dims(lidar_img, 0)
-
         # Get traversability weights
         weight_idxs = np.digitize(traversability, self.bins[:-1]) - 1
         trav_weights = np.zeros_like(traversability)
@@ -235,12 +236,6 @@ class Dataset(DataLoader.Dataset):
         extrinsics = np.stack(extrinsics_list)
         depth_target = np.stack(depth_target_list)
         depth_mask = np.stack(depth_mask_list)
-        # color_img = color_img.unsqueeze(0)
-        # intrinsics = np.expand_dims(intrinsics, 0)
-        # extrinsics = np.expand_dims(extrinsics, 0)
-
-        # And expand goal through the horizon
-        # goal = np.repeat(goal[np.newaxis, :], self.horizon, axis=0)
 
         # Pad states, traversability and weights in case they are short
         pad = np.ones([self.horizon-states.shape[0], states.shape[1]]) * np.inf

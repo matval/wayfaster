@@ -8,9 +8,9 @@ _C = EasyDict()
 _C.TAG = 'default'
 
 _C.TRAINING = EasyDict()
-_C.TRAINING.EPOCHS = 20
+_C.TRAINING.EPOCHS = 50
 _C.TRAINING.BATCHSIZE = 4
-_C.TRAINING.N_WORKERS = 8
+_C.TRAINING.WORKERS = 8
 _C.TRAINING.PRECISION = 16
 _C.TRAINING.DT = 0.1        # time step in seconds
 _C.TRAINING.HORIZON = 500   # horizon in number of points
@@ -20,7 +20,6 @@ _C.TRAINING.VERBOSE = True
 
 # model parameters
 _C.MODEL = EasyDict()
-_C.MODEL.ENCODER = 'resnet50'
 _C.MODEL.LOAD_NETWORK = None
 _C.MODEL.DOWNSAMPLE = 8
 _C.MODEL.LATENT_DIM = 64
@@ -28,7 +27,6 @@ _C.MODEL.TIME_LENGTH = 3
 _C.MODEL.PREDICT_DEPTH = True
 _C.MODEL.TRAIN_DEPTH = True
 _C.MODEL.FUSE_PCLOUD = True
-_C.MODEL.ENC_3_LAYERS = True
 _C.MODEL.INPUT_SIZE = (320, 180)
 _C.MODEL.GRID_BOUNDS = {
     'xbound': [-2.0, 8.0, 0.1],
@@ -49,23 +47,6 @@ _C.DATASET.CSV_FILE = 'rosbags.csv'
 _C.AUGMENTATIONS = EasyDict()
 _C.AUGMENTATIONS.HORIZ_FLIP = 0.5         # horizontal flip augmentation
 _C.AUGMENTATIONS.PCLOUD_DROPOUT = 0.3     # probability to drop the pointcloud input
-
-_C.CONTROL = EasyDict()
-# _C.CONTROL.precision = 16
-_C.CONTROL.dt = 0.5
-_C.CONTROL.real_dt = 0.05
-_C.CONTROL.samples = 2048   # N_SAMPLES
-_C.CONTROL.horizon = 16     # TIMESTEPS
-_C.CONTROL.u_min = [-0.7, -3]
-_C.CONTROL.u_max = [0.7, 3]
-_C.CONTROL.noise_mu = [0.0, 0.0]
-_C.CONTROL.noise_sigma = [0.2, 1.0]
-_C.CONTROL.action_dim = 2
-_C.CONTROL.gamma = 50.0
-_C.CONTROL.Q = [5, 5, 1]
-_C.CONTROL.Qf = [10, 10, 2]
-_C.CONTROL.R = [500, 0.1]
-_C.CONTROL.W = [0, 0]
 
 # Set randomization seed
 _C.SEED = 42

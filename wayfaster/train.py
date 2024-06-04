@@ -9,9 +9,9 @@ from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 # Custom packages
-from dataloader import Dataset
-from train_configs import get_cfg
-from trainer import TrainingModule
+from train.dataloader import Dataset
+from train.train_configs import get_cfg
+from train.trainer import TrainingModule
 
 def parse_config():
     # Get arguments
@@ -38,11 +38,25 @@ def main():
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
         transforms.ToTensor()])
 
-    train_dataset = Dataset(configs, configs.DATASET.TRAIN_DATA, transform)
-    valid_dataset = Dataset(configs, configs.DATASET.VALID_DATA, transform, train_dataset.weights)
+    train_dataset = Dataset(configs, configs.DATASET.TRAIN_DATA, transform=transform, train=True)
+    valid_dataset = Dataset(configs, configs.DATASET.VALID_DATA, weights=train_dataset.weights)
 
-    train_loader = DataLoader(train_dataset, batch_size=configs.TRAINING.BATCHSIZE, shuffle=True, num_workers=configs.TRAINING.N_WORKERS, drop_last=True, pin_memory=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=configs.TRAINING.BATCHSIZE, shuffle=False, num_workers=configs.TRAINING.N_WORKERS, drop_last=True, pin_memory=True)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size  = configs.TRAINING.BATCHSIZE,
+        num_workers = configs.TRAINING.WORKERS,
+        shuffle     = True,
+        drop_last   = True,
+        pin_memory  = True
+    )
+    valid_loader = DataLoader(
+        valid_dataset,
+        batch_size  = configs.TRAINING.BATCHSIZE,
+        shuffle     = False,
+        num_workers = configs.TRAINING.WORKERS,
+        drop_last   = True,
+        pin_memory  = True
+    )
 
     model = TrainingModule(configs)
 
@@ -62,13 +76,12 @@ def main():
         save_top_k          = 1)
 
     trainer = pl.Trainer(
-        devices                 = 2,
+        devices                 = -1,
         num_nodes               = 1,
         gradient_clip_val       = 10,
         sync_batchnorm          = True,
         enable_model_summary    = True,
         accelerator             = 'gpu',
-        # profiler                = 'pytorch', #'simple',
         logger                  = tb_logger,
         default_root_dir        = 'checkpoints',
         max_epochs              = configs.TRAINING.EPOCHS,
