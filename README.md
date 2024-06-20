@@ -1,5 +1,7 @@
 # WayFASTER: a Self-Supervised Traversability Prediction for Increased
 
+## (Please note: The code in this repository is currently undergoing updates and is not yet complete. Stay tuned for the latest versions!)
+
 ![outline](images/WayFASTER.png)
 
 ## Introduction
