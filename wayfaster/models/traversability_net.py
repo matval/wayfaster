@@ -17,7 +17,6 @@ class TravNet(nn.Module):
         temporal_length (int): Length of the temporal sequence.
         predict_depth (bool): Whether to predict depth or not.
         fuse_pcloud (bool): Whether to fuse point cloud data or not.
-        encoder (str): The encoder model to use.
     """
     def __init__(
             self, grid_bounds, input_size, downsample=8,
