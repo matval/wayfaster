@@ -4,22 +4,34 @@ DATASET:
     TRAIN_DATA: ['dataset/zed2/data_train', 'dataset/realsense/data_train']
     VALID_DATA: ['dataset/zed2/data_valid', 'dataset/realsense/data_valid']
 
+OPTIMIZER:
+    LR: 0.0001
+    WEIGHT_DECAY: 0.0001
+
 TRAINING:
-    BATCHSIZE: 8
+    BATCHSIZE: 4
     WORKERS: 4
-    EPOCHS: 50
+    EPOCHS: 20
     VERBOSE: False
+    GAMMA: 1.0
+    DEPTH_WEIGHT: 0.1
+    HORIZON: 300
+    DT: 0.1
 
 MODEL:
     TIME_LENGTH: 6
-    DOWNSAMPLE: 4
+    DOWNSAMPLE: 8
     LATENT_DIM: 64
-    INPUT_SIZE: [160, 90]
+    INPUT_SIZE: [320, 180]
     PREDICT_DEPTH: True
     TRAIN_DEPTH: True
     FUSE_PCLOUD: True
     GRID_BOUNDS: {
         'xbound': [-2.0, 8.0, 0.1],
         'ybound': [-5.0, 5.0, 0.1],
-        'zbound': [-1.0, 2.0, 1.0],
-        'dbound': [ 0.3, 8.0, 0.3]}
+        'zbound': [-1.0, 2.0, 0.2],
+        'dbound': [ 0.3, 8.0, 0.2]}
+
+AUGMENTATIONS:
+    MAX_TRANSLATION: 0.0
+    MAX_ROTATION: 0.0

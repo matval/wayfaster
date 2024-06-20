@@ -10,6 +10,9 @@ torch==2.2.2
 torchvision==0.17.2
 pytorch-lightning
 opencv-python
+kornia==0.7.1
+scipy==1.8.1
+wandb>=0.12.10
 easydict
 contourpy
 rospkg

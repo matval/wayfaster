@@ -1,12 +1,12 @@
-import os
-import time
 import torch
 import argparse
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
+
+from torch.utils.data import DataLoader
+from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import DDPStrategy
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
 # Custom packages
 from train.dataloader import Dataset
@@ -66,14 +66,22 @@ def main():
         pretrained_dict = torch.load(configs.MODEL.LOAD_NETWORK, map_location='cpu')['state_dict']
         model.load_state_dict(pretrained_dict)
 
-    save_dir    = os.path.join('runs', configs.TAG + "_" + time.strftime('%d-%m-%Y_%H-%M-%S'))
-    tb_logger   = pl.loggers.TensorBoardLogger(save_dir=save_dir)
+    # Initialize logger
+    wandb_logger = WandbLogger(
+        project="WayFASTER",
+        log_model="all",
+    )
+
+    # Set up checkpoint callback
     checkpoint_callback = ModelCheckpoint(
+        dirpath             = 'checkpoints',
         filename            = 'checkpoint_{epoch}-{valid_loss:.4f}',
-        monitor             = "valid_trav_loss",
+        monitor             = "valid_loss",
         save_weights_only   = True,
         save_last           = True,
         save_top_k          = 1)
+    
+    lr_monitor = LearningRateMonitor(logging_interval='epoch')
 
     trainer = pl.Trainer(
         devices                 = -1,
@@ -82,12 +90,13 @@ def main():
         sync_batchnorm          = True,
         enable_model_summary    = True,
         accelerator             = 'gpu',
-        logger                  = tb_logger,
+        logger                  = wandb_logger,
         default_root_dir        = 'checkpoints',
         max_epochs              = configs.TRAINING.EPOCHS,
         precision               = configs.TRAINING.PRECISION,
         strategy                = DDPStrategy(find_unused_parameters=False),
-        callbacks               = [checkpoint_callback])
+        callbacks               = [checkpoint_callback, lr_monitor],
+    )
 
     trainer.fit(model, train_loader, valid_loader)
 

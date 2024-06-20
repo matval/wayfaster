@@ -29,21 +29,21 @@ If you find the code useful, please consider citing our paper using the followin
 - CUDA (Tested using CUDA 12.2)
 
 ## Installation
-a. Create a python virtual environment and activate it.
-```shell
-python3 -m virtualenv env
-source env/bin/activate
-```
-b. Install the dependencies using the provided `requirements.txt` file.
-```shell
-pip3 install -r requirements.txt
-```
+- Create a python virtual environment and activate it.
+  ```shell
+  python3 -m virtualenv env
+  source env/bin/activate
+  ```
+- Install the dependencies using the provided `requirements.txt` file.
+  ```shell
+  pip3 install -r requirements.txt
+  ```
 
 ## WayFASTER dataset
 - Download the WayFASTER dataset by running the script inside this package:
-```shell
-./download_data.sh
-```
+  ```shell
+  ./download_data.sh
+  ```
 
 ## Code execution
 ### Configuration parameters and training
@@ -53,10 +53,22 @@ If you intend to modify the model parameters, please do so here. Also, the train
 ### Model and data handling
 The network model is stored in the `wayfaster/models` folder.
 
-To train the model, execute the following command. 
+To train the model, execute the following command:
 ```shell
 python3 wayfaster/train.py --cfg_file configs/temporal_model.yaml
 ```
+
+### Debugging with Weights & Biases
+
+This project leverages Weights & Biases (wandb) for comprehensive experiment tracking and debugging.
+
+- Before using wandb in your project, you need to sign up for an account on the [Weights & Biases website](https://wandb.ai/).
+
+- Once signed up, run:
+  ```shell
+  wandb login
+  ```
+  And follow the on-screen instructions to log in to your wandb account.
 
 ## Experimental results
 

@@ -15,7 +15,8 @@ _C.TRAINING.PRECISION = 16
 _C.TRAINING.DT = 0.1        # time step in seconds
 _C.TRAINING.HORIZON = 500   # horizon in number of points
 _C.TRAINING.GAMMA = 0.998
-_C.TRAINING.VIS_INTERVAL = 50
+_C.TRAINING.DEPTH_WEIGHT = 0.1
+_C.TRAINING.VIS_INTERVAL = 500
 _C.TRAINING.VERBOSE = True
 
 # model parameters
@@ -32,7 +33,8 @@ _C.MODEL.GRID_BOUNDS = {
     'xbound': [-2.0, 8.0, 0.1],
     'ybound': [-5.0, 5.0, 0.1],
     'zbound': [-2.0, 2.0, 0.1],
-    'dbound': [ 0.3, 8.0, 0.2]}
+    'dbound': [ 0.3, 8.0, 0.2]
+}
 
 # training parameters
 _C.OPTIMIZER = EasyDict()
@@ -47,6 +49,8 @@ _C.DATASET.CSV_FILE = 'rosbags.csv'
 _C.AUGMENTATIONS = EasyDict()
 _C.AUGMENTATIONS.HORIZ_FLIP = 0.5         # horizontal flip augmentation
 _C.AUGMENTATIONS.PCLOUD_DROPOUT = 0.3     # probability to drop the pointcloud input
+_C.AUGMENTATIONS.MAX_TRANSLATION = 2.0    # maximum translation in meters
+_C.AUGMENTATIONS.MAX_ROTATION = 1.5708    # maximum rotation in radians
 
 # Set randomization seed
 _C.SEED = 42

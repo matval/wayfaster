@@ -163,5 +163,8 @@ cython_debug/
 .vscode
 
 # Other custom files
-runs/*
+wandb/*
 dataset/*
+configs/temporal_model_hal.yaml
+environment.yml
+submit_train.sh

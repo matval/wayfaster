@@ -5,17 +5,28 @@ import random
 import bisect
 import numpy as np
 import pandas as pd
-# from pandas.errors import EmptyDataError
-# import open3d as o3d
 import torch.utils.data as DataLoader
 
-from scipy import stats
 from itertools import compress
 from scipy.spatial.transform import Rotation as R
+from scipy.ndimage import gaussian_filter1d
 
 class Dataset(DataLoader.Dataset):
+    """
+    Custom Dataset for handling image and state data.
+    """
     def __init__(self, configs, data_path, transform=None, weights=None, train=False):
-        print("Initializing dataset")
+        """
+        Initialize the Dataset object.
+
+        Args:
+            configs (object): Configuration object containing dataset parameters.
+            data_path (list): List of paths to the dataset directories.
+            transform (callable, optional): A function/transform to apply to the data. Defaults to None.
+            weights (numpy.ndarray, optional): Precomputed weights for the dataset. Defaults to None.
+            train (bool, optional): Whether the dataset is for training. Defaults to False.
+        """
+        print("Initializing dataset...")
         self.transform      = transform
         self.train          = train
         self.dt             = configs.TRAINING.DT
@@ -29,6 +40,8 @@ class Dataset(DataLoader.Dataset):
         self.pcloud_droput  = configs.AUGMENTATIONS.PCLOUD_DROPOUT
         self.n_frames       = configs.MODEL.TIME_LENGTH
         self.predict_depth  = configs.MODEL.PREDICT_DEPTH
+        self.max_translation_aug = configs.AUGMENTATIONS.MAX_TRANSLATION
+        self.max_rotation_aug = configs.AUGMENTATIONS.MAX_ROTATION
 
         self.bin_width = 0.2
         self.dtype = torch.float32
@@ -46,7 +59,9 @@ class Dataset(DataLoader.Dataset):
             # Read lines in csv file
             bags_list = pd.read_csv(csv_path)
             for bag in bags_list.values:
-                print('reading bag:', bag[0])
+                if self.verbose:
+                    print('reading bag:', bag[0])
+                
                 curr_dir = os.path.join(curr_path, bag[0])
                 states_data = pd.read_csv(os.path.join(curr_dir, 'states.csv'))
                 images_data = pd.read_csv(os.path.join(curr_dir, 'images.csv'))
@@ -63,10 +78,13 @@ class Dataset(DataLoader.Dataset):
             self.weights, self.bins = self.prepare_weights()
         else:
             self.weights = weights
-            self.bins = np.linspace(0,1, int(1/self.bin_width))
+            self.bins = np.linspace(0, 1, int(1/self.bin_width)+1)
 
-        print('weights:', self.weights)
-        print('bins:', self.bins)
+        if self.verbose:    
+            print('weights:', self.weights)
+            print('bins:', self.bins)
+
+        print("Dataset initialized!")
 
     def __len__(self):
         length = 0
@@ -102,20 +120,10 @@ class Dataset(DataLoader.Dataset):
         # Augment with horizontal flip
         if self.train:
             horizontal_flip = random.random() < self.horiz_flip
+            aug_transformation = self.sample_transformation()
         else:
             horizontal_flip = False
-
-        # Get the label
-        label_fname = rosbag_dict['label_image'][data_idx]
-        if len(label_fname) > 0:
-            label_img = cv2.imread(label_fname, -1)
-        else:
-            label_img = np.ones(self.map_size)*127
-        if horizontal_flip:
-            label_img = np.fliplr(label_img).copy()
-
-        label_mask = (label_img != 127).astype('float')
-        label_img = label_img/255.0
+            aug_transformation = np.eye(4)
 
         image_timestamp_list = []
         color_img_list = []
@@ -130,6 +138,9 @@ class Dataset(DataLoader.Dataset):
             # pcloud_fname = rosbag_dict['point_cloud'][data_idx].copy()
             intrinsics = rosbag_dict['intrinsics'][data_idx+t].copy()
             cam2base = rosbag_dict['cam2base'][data_idx+t].copy()
+
+            # Apply augmentation
+            cam2base = aug_transformation @ cam2base
 
             # Read RGB data
             color_img = cv2.imread(color_fname, -1)
@@ -151,7 +162,7 @@ class Dataset(DataLoader.Dataset):
             cam2base_list.append(cam2base)
 
         # Read states and traversability information already with horizontal flip
-        states, traversability = self.get_states(rosbag_dict, image_timestamp_list, horizontal_flip)
+        states, traversability = self.get_states(rosbag_dict, image_timestamp_list, aug_transformation, horizontal_flip)
         extrinsics_list = self.get_extrinsics(rosbag_dict, image_timestamp_list, cam2base_list, horizontal_flip)
         # Get pointcloud from depth
         pcloud_data = self.read_pcloud(depth_img_list, intrinsics_list, extrinsics_list)
@@ -187,7 +198,7 @@ class Dataset(DataLoader.Dataset):
             depth_size = (np.ceil(self.image_size[0]/self.downsample).astype('int'), np.ceil(self.image_size[1]/self.downsample).astype('int'))
             depth_target = cv2.resize(depth_target, depth_size, interpolation=cv2.INTER_NEAREST)
             # Get depth mask
-            depth_mask = (depth_target!=0.0).astype(np.float)
+            depth_mask = (depth_target!=0.0).astype(np.float64)
             # Discretize depth
             depth_target = np.round((depth_target - self.grid_bounds['dbound'][0]) / self.grid_bounds['dbound'][2]).astype('int')
             n_d = int((self.grid_bounds['dbound'][1] - self.grid_bounds['dbound'][0]) / self.grid_bounds['dbound'][2])
@@ -251,22 +262,29 @@ class Dataset(DataLoader.Dataset):
         intrinsics      = torch.from_numpy(intrinsics).type(self.dtype)
         extrinsics      = torch.from_numpy(extrinsics).type(self.dtype)
         states          = torch.from_numpy(states).type(self.dtype)
-        # goal            = torch.from_numpy(goal).type(self.dtype)
         traversability  = torch.from_numpy(traversability).type(self.dtype)
         trav_weights    = torch.from_numpy(trav_weights).type(self.dtype)
         depth_target    = torch.from_numpy(depth_target)
         depth_mask      = torch.from_numpy(depth_mask).type(self.dtype)
-        label_img       = torch.from_numpy(label_img).type(self.dtype)
-        label_mask      = torch.from_numpy(label_mask).type(self.dtype)
 
-        return color_img, pcloud_data, intrinsics, extrinsics, states, traversability, trav_weights, depth_target, depth_mask, label_img, label_mask
+        return color_img, pcloud_data, intrinsics, extrinsics, states, traversability, trav_weights, depth_target, depth_mask
 
     def read_data(self, states_data, images_data, curr_dir):
+        """
+        Read and prepare data from CSV files.
+
+        Args:
+            states_data (pd.DataFrame): DataFrame containing states data.
+            images_data (pd.DataFrame): DataFrame containing images data.
+            curr_dir (str): Current directory path.
+
+        Returns:
+            dict: Dictionary containing prepared data.
+        """
         # Images file
         image_timestamp_list = []
         color_fname_list = []
         depth_fname_list = []
-        # pcloud_fname_list = []
         intrinsics_list = []
         cam2base_list = []
         # States file
@@ -275,7 +293,6 @@ class Dataset(DataLoader.Dataset):
         quaternion_list = []
         action_list = []
         trav_list = []
-        label_list = []
 
         map_float = lambda x: np.array(list(map(float, x)))
 
@@ -288,13 +305,7 @@ class Dataset(DataLoader.Dataset):
             
             # pcloud_fname = os.path.join(curr_dir, pcloud_fname)
             color_fname = os.path.join(curr_dir, color_fname)
-            depth_fname = os.path.join(curr_dir, depth_fname)
-
-            label_fname = ""
-            if "label" in images_data:
-                curr_label = images_data['label'].iloc[i]
-                if curr_label == curr_label:
-                    label_fname = os.path.join(curr_dir, images_data['label'].iloc[i])                
+            depth_fname = os.path.join(curr_dir, depth_fname)              
 
             # Read intrinsics matrix
             intrinsics = intrinsics.replace('[', ' ').replace(']', ' ').split()
@@ -308,10 +319,8 @@ class Dataset(DataLoader.Dataset):
             image_timestamp_list.append(timestamp)
             color_fname_list.append(color_fname)
             depth_fname_list.append(depth_fname)
-            # pcloud_fname_list.append(pcloud_fname)
             intrinsics_list.append(intrinsics)
             cam2base_list.append(cam2base)
-            label_list.append(label_fname)
 
         for timestamp, position, quaternion, action, traversability in states_data.iloc:
             # Read linear control action
@@ -335,12 +344,10 @@ class Dataset(DataLoader.Dataset):
             trav_list.append(traversability)
 
         # Remove data to make all the images have a future horizon
-        # idxs = np.asarray(image_timestamp_list) < (image_timestamp_list[-1] - self.horizon*self.dt)
         idxs = np.asarray(image_timestamp_list) < states_timestamp_list[-1]
         image_timestamp_list = list(compress(image_timestamp_list, idxs))
         color_fname_list = list(compress(color_fname_list, idxs))
         depth_fname_list = list(compress(depth_fname_list, idxs))
-        # pcloud_fname_list = list(compress(pcloud_fname_list, idxs))
         intrinsics_list = list(compress(intrinsics_list, idxs))
         cam2base_list = list(compress(cam2base_list, idxs))
 
@@ -351,8 +358,6 @@ class Dataset(DataLoader.Dataset):
             'image_timestamp': image_timestamp_list,
             'color_image': color_fname_list,
             'depth_image': depth_fname_list,
-            'label_image': label_list,
-            # 'point_cloud': pcloud_fname_list,
             'intrinsics': intrinsics_list,
             'cam2base': cam2base_list,
             'states_timestamp': states_timestamp_list,
@@ -363,8 +368,18 @@ class Dataset(DataLoader.Dataset):
 
         return data_dict
     
-    def get_states(self, rosbag_dict, image_timestamp, horizontal_flip=False):
-        # timestamps = np.arange(0, self.goal_horizon) * self.dt + image_timestamp
+    def get_states(self, rosbag_dict, image_timestamp, aug_transformation, horizontal_flip=False):
+        """
+        Get states synchronized to the time horizon.
+
+        Args:
+            rosbag_dict (dict): Dictionary containing rosbag data.
+            image_timestamp (list): List of image timestamps.
+            horizontal_flip (bool, optional): Whether to apply horizontal flip. Defaults to False.
+
+        Returns:
+            tuple: States and traversability.
+        """
         timestamps = np.arange(0, self.horizon) * self.dt + image_timestamp[0]
         # Get states synchronized to the time horizon
         sync = [bisect.bisect_left(rosbag_dict['states_timestamp'], i) for i in timestamps if i<rosbag_dict['states_timestamp'][-1]]
@@ -391,7 +406,11 @@ class Dataset(DataLoader.Dataset):
         heading_rot = R.from_euler('zyx', [curr_euler_angle[0], 0, 0])
         # Transform position in relation to the first timestamp
         position = (heading_rot.inv().as_matrix() @ (position.T - curr_position[None].T)).T
-        # goal_noise = np.random.uniform(low=-self.goal_noise, high=self.goal_noise, size=2)
+
+        # Apply augmentation
+        position = (aug_transformation[:3,:3] @ position.T).T + aug_transformation[:3,3]
+        euler_angle[0] += np.arctan2(aug_transformation[1,0], aug_transformation[0,0])
+
         states = np.hstack((position[:,:2], euler_angle[:,0:1], action))
 
         if horizontal_flip:
@@ -399,9 +418,21 @@ class Dataset(DataLoader.Dataset):
             states[:,2] = -states[:,2]
             states[:,4] = -states[:,4]
 
-        return states, traversability #, goal
+        return states, traversability
     
     def get_extrinsics(self, rosbag_dict, image_timestamp, cam2base_list, horizontal_flip=False):
+        """
+        Get extrinsics synchronized to the time horizon.
+
+        Args:
+            rosbag_dict (dict): Dictionary containing rosbag data.
+            image_timestamp (list): List of image timestamps.
+            cam2base_list (list): List of camera to base transformations.
+            horizontal_flip (bool, optional): Whether to apply horizontal flip. Defaults to False.
+
+        Returns:
+            list: List of extrinsics matrices.
+        """
         # Get states synchronized to the time horizon
         sync = [bisect.bisect_left(rosbag_dict['states_timestamp'], i) for i in image_timestamp if i<rosbag_dict['states_timestamp'][-1]]
         position = np.asarray(rosbag_dict['position'])[sync]
@@ -417,7 +448,6 @@ class Dataset(DataLoader.Dataset):
         heading_rot = R.from_euler('zyx', [euler_angle[-1,0], 0, 0])
         # Transform position in relation to the first timestamp
         position = (heading_rot.inv().as_matrix() @ (position.T - position[-1,None].T)).T
-        # goal_noise = np.random.uniform(low=-self.goal_noise, high=self.goal_noise, size=2)
 
         if horizontal_flip:
             position[:,1] = -position[:,1]
@@ -443,13 +473,17 @@ class Dataset(DataLoader.Dataset):
         return extrinsics_list
     
     def read_pcloud(self, depth_image_list, cam_intrinsics_list, cam_extrinsics_list):
-        # pcloud = o3d.io.read_point_cloud(pcloud_fname)
-        # pcloud = np.asarray(pcloud.points)   
-        # try:
-        #     pcloud = pd.read_csv(pcloud_fname, delim_whitespace=True).to_numpy()
-        # except EmptyDataError:
-        #     pcloud = np.array([[],[],[]]).T
-        # pcloud = np.array([[],[],[]]).T
+        """
+        Read and process point cloud data from depth images.
+
+        Args:
+            depth_image_list (list): List of depth images.
+            cam_intrinsics_list (list): List of camera intrinsics matrices.
+            cam_extrinsics_list (list): List of camera extrinsics matrices.
+
+        Returns:
+            numpy.ndarray: Processed point cloud data.
+        """
         temporal_grid = []
         for t in range(len(depth_image_list)):
             depth_image = depth_image_list[t]
@@ -472,8 +506,6 @@ class Dataset(DataLoader.Dataset):
             points = (combined_transformation @ points.T).T
             points += translation
 
-            # pcloud = np.concatenate((pcloud, points))
-
             dx = np.asarray([row[2] for row in [self.grid_bounds['xbound'], self.grid_bounds['ybound'], self.grid_bounds['zbound']]])
             cx = np.asarray([np.round(row[1]/row[2] - 0.5) for row in [self.grid_bounds['xbound'], self.grid_bounds['ybound'], self.grid_bounds['zbound']]]).astype(int)
             nx = np.asarray([(row[1] - row[0]) / row[2] for row in [self.grid_bounds['xbound'], self.grid_bounds['ybound'], self.grid_bounds['zbound']]]).astype(int)
@@ -481,7 +513,12 @@ class Dataset(DataLoader.Dataset):
             # Create gridmap X x Y x Z
             grid = np.zeros((nx[0], nx[1], nx[2]))
             idx_lidar = np.round(np.array([cx]) - points/dx - 0.5).astype(int)
-            idx_lidar = idx_lidar[(idx_lidar[:,0] >= 0) * (idx_lidar[:,0] < nx[0]) * (idx_lidar[:,1] >= 0) * (idx_lidar[:,1] < nx[1]) * (idx_lidar[:,2] >= 0) * (idx_lidar[:,2] < nx[2])]
+            idx_lidar = idx_lidar[
+                (idx_lidar[:,0] >= 0) * (idx_lidar[:,0] < nx[0]) * \
+                (idx_lidar[:,1] >= 0) * (idx_lidar[:,1] < nx[1]) * \
+                (idx_lidar[:,2] >= 0) * (idx_lidar[:,2] < nx[2])
+            ]
+
             grid[idx_lidar[:,0], idx_lidar[:,1], idx_lidar[:,2]] = 1
 
             # Transform it to Z x X x Y
@@ -491,6 +528,12 @@ class Dataset(DataLoader.Dataset):
         return np.stack(temporal_grid)
     
     def prepare_weights(self):
+        """
+        Prepare weights for the dataset based on the traversability distribution.
+
+        Returns:
+            tuple: Weights and bins for the dataset.
+        """
         label = []
         for data in self.rosbags:
             traversability = data['traversability']
@@ -498,9 +541,36 @@ class Dataset(DataLoader.Dataset):
 
         # Flatten the entire list of numpy arrays
         label = np.asarray(label)
+
         # Calculate histogram
         values = np.zeros((int(1/self.bin_width), 2))
         values[:,0], _ = np.histogram(label[:,0], bins=int(1/self.bin_width), range=(0,1), density=True)
         values[:,1], bins = np.histogram(label[:,1], bins=int(1/self.bin_width), range=(0,1), density=True)
 
+        # Smooth out the distribution using a Gaussian kernel
+        values = gaussian_filter1d(values, sigma=1.0, axis=0, mode='constant')
+
         return 1/values, bins
+    
+    def sample_transformation(self):
+        """
+        Sample a random transformation for data augmentation.
+
+        Returns:
+            numpy.ndarray: Random transformation matrix.
+        """
+        # Random rotation
+        theta = random.uniform(-self.max_rotation_aug, self.max_rotation_aug)
+        rotation = np.array([
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta),  np.cos(theta)]
+        ])
+        
+        # Random translation
+        translation = np.random.uniform(-self.max_translation_aug, self.max_translation_aug, 2)
+
+        transformation = np.eye(4)
+        transformation[:2, :2] = rotation
+        transformation[:2, 3] = translation
+
+        return transformation

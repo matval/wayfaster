@@ -3,9 +3,10 @@ import kornia
 
 EPS = 1e-6
 
-# State Visitation Frequency
 def path_to_map(trajs, probs, map_shape, map_resolution, map_origin, std=0.1):
     '''
+    Project path to map
+    
     trajs: B,K,T,3
     probs: B,K
     '''
